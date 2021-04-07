@@ -1,13 +1,15 @@
-from pathlib import Path
 import io
 import os
 import subprocess
-from cv2 import cv2
 import click
+from datetime import datetime
+from pathlib import Path
+from cv2 import cv2
 
 
 gallery_dir = Path("../stahlferro.github.io/src/static/gallery-videos/").resolve()
-out_dir = Path("../stahlferro.github.io/src/static/gallery-thumbs").resolve()
+out_dir = Path("../stahlferro.github.io/src/static/gallery-thumbs/").resolve()
+notes_path = out_dir.joinpath("wtg_log.txt")
 pngquant_path = Path("bin/pngquant.exe").resolve()
 
 size_suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
@@ -36,16 +38,24 @@ def _generate_thumbnails(quality: int):
     # for gc in gallery_collections:
     #     print(gc)
     total_size = 0
+    genlog_descs = []
     for collection_dir in gallery_collections:
-        print(f"Collection dir\n\t{collection_dir}")
+        colldir_txt = f"Collection dir\n{collection_dir}"
+        print(colldir_txt)
+        genlog_descs.append(f"{colldir_txt}\n")
         video_paths = [cd for cd in Path(collection_dir).glob("*")]
 
         thumbgroup_dir = Path.joinpath(out_dir, collection_dir.stem)
         if not os.path.exists(thumbgroup_dir):
             os.mkdir(thumbgroup_dir)
-        print(f"Save dir\n\t{thumbgroup_dir}")
+        savedir_txt = f"Save dir\n{thumbgroup_dir}\n"
+        print(savedir_txt)
+        genlog_descs.append(f"{savedir_txt}\n")
         for vidpath in video_paths:
-            print(f"\t\t{Path(*vidpath.parts[-2:])}")
+            vidfile = vidpath.name
+            print(vidfile)
+            genlog_descs.append(f"{vidfile}\n")
+            # print(f"{Path(*vidpath.parts[-2:])}")
             video = cv2.VideoCapture(str(vidpath))
             retval, frame = video.read()
             fname = f"{vidpath.stem}.png"
@@ -57,13 +67,32 @@ def _generate_thumbnails(quality: int):
             im_size = Path(save_path).stat().st_size
             total_size += im_size
             im_size_desc = _read_filesize(im_size)
-            print(f"\t\t[{im_size_desc}] {Path(*save_path.parts[-2:])}")
+            final_compressed_desc = f"[{im_size_desc}] {save_path.name}"
+            print(final_compressed_desc)
+            genlog_descs.append(f"{final_compressed_desc}\n")
+            # print(f"\t\t[{im_size_desc}] {Path(*save_path.parts[-2:])}")
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
             video.release()
             cv2.destroyAllWindows()
-    print(f"Total thumbnails size: {_read_filesize(total_size)}")
+        print("\n")
+        genlog_descs.append("\n\n")
+    totalsize_desc = f"Total size   : {_read_filesize(total_size)}\n"
+    print(totalsize_desc)
+    print("Writing thumbgen.txt...")
+    with open(notes_path, "w") as f:
+        f.writelines([
+            "=================================================\n",
+            f"Website Thumbnail Generator v0.0.1 Log\n\n",
+            f"Datetime     : {datetime.now().strftime('%Y-%m-%dT%H:%M:%S')} UTC\n",
+            f"Quality      : {quality}\n",
+            f"{totalsize_desc}",
+            "=================================================\n\n"
+            "==== Generation Log ====\n\n"])
+        f.writelines(genlog_descs)
+    print("Done writing.")
+    print("All processes finished.")
 
 
 @click.group()
